@@ -1,0 +1,2 @@
+
+These are the notes and labs from the online course of the National Tsing Hua University, from [which](http://ocw.nthu.edu.tw/ocw/index.php?page=course&cid=231&) I learned a lot about the parallel programming.
