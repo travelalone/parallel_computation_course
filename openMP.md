@@ -1,4 +1,4 @@
-#OpenMP
+# OpenMP
 
 ## Introduction
 
@@ -10,7 +10,7 @@
 
 - Example:
 
-  `#pragma omp parallel default(shared) private(beta, pi)`
+  `#pragma omp parallel default(shared) private(beta, pi)`rules
 
 - rules
 
@@ -82,11 +82,15 @@ structured_block
 - type
 
   - **DO / for** (shared iterations of a loop across the team) Represents a type of "data parallelism"
+
   - **SECTIONS**, breaks work into separate, discrete sections of code. Each section is executed by a thread
+
   - **SINGLE** serialized a section of code by running with a single thread (E.g: IO)
+
   - Should be enclosed within a parallel region for parallelism
 
-- `DO/ for directive`
+
+  ### DO/ for directive
 
   - Purpose: indicate the iterations of the loop immediately following it must be executed in parallel by the team of threads
 
@@ -147,3 +151,190 @@ structured_block
     > i = 1, j = 1, thread=2
     >
     > i = 2, j = 1, thread=4
+
+
+### Section Directive
+
+- A non-iterative work-sharing construct
+
+- It specifies that the enclosed sections of CODE are to be divided among the threads in team
+
+- Independent SECTION directives are nested within a *SECTION* directive
+
+- Each SECTION in **executed ONCE by ONE thread**
+
+- The mapping between threads and sections is **decided by the library implementation**
+
+  ```C
+  #pragma omp sections [clause....]
+  {
+      #pragma omp section
+      	structured_block
+      #pragma omp section
+          structured_block
+  }
+  ```
+
+  ```C
+  #include <omp.h>
+  #include <stdio.h> 
+  
+  void main() {
+      int N = 1000;
+      int a[N], b[N], c[N], d[N];
+  
+      #pragma omp parallel num_threads(2) shared(a,b,c,d)
+      {
+          #pragma omp sections
+          {
+              #pragma omp section
+              {
+                  for(int i = 0; i<N; i++) c[i] = a[i] + b[i];
+              }
+              #pragma omp section
+              {
+                  for (int i=0; i<N; i++) d[i] = a[i] + b[i];
+              }
+  
+          }
+      }
+      printf("%d\n", c[0]);
+      printf("%d\n", d[0]);
+  }
+  ```
+
+
+###  SINGLE Directive
+
+- The SINGLE directive specifies that the enclosed code is to be executed by only one thread in the team
+- May be useful when dealing with sections of code that are not thread safe(such as I/O)
+- Threads in the team that do not execute the SINGLE directive, wait at the end of the enclosed code block, unless a **nowait** clause is specified
+
+```C
+#include<omp.h>
+#include <stdio.h>
+
+void main()
+{
+    int input;
+    #pragma omp parallel num_threads(4) shared(input)
+    {
+        #pragma omp single
+        {
+            scanf("%d", &input);
+        }
+    printf("input is %d\n", input);
+    }
+}
+```
+
+## Synchronization Constructs
+
+- For synchronization purpose among threads
+
+  `#pragma omp [synchronization_directive] [clause ....] structured_block`
+
+- Synchronization Directives
+
+  - `master` only executed by the master thread
+    - No implicit barrier at the end
+    - More efficient than SINGLE directive
+  - `critical` must be executed by one thread at a time, threads will be blocked until the critical section is clear
+  - `barrier` blocked until all threads reach the call
+  - `atomic` memory location must be updated atomically (provide a mini-critical section)
+
+- LOCK OpenMP Routine
+  - `void omp_init_lock(omp_lock_t *lock)` initializeds a lock associated with the lock variable
+  - `void omp_destroy_lock(omp_lock_t *lock)` Disassociates the given lock variable from any locks
+  - `void omp_set_lock(omp_lock_t *lock)` Force the thread to wait until the specified lock is available
+  - `void omp_unset_lock(omp_lock_t *lock)` Releases the lock from the executing subroutine
+  - `int omp_test_lock(omp_lock_t *lock)` Attemptes to set a lock, but dose not block if unavailable
+- Advantage of using critical over lock:
+  - No need to declare, initialize and destroy a lock
+  - you always have explicit control over where your cirtical section ends
+  - Less overhead with compiler assist
+
+## Data Scope Attribute Clauses
+
+It's critical to understand the scope of each data
+
+- OpenMP is based on shared memory programming model
+
+- Most variables are shared by default
+
+- Global shraed variables:
+
+  - File scope variables, static
+
+- Private non-shared variables
+
+  - Loop Index variables
+  - stack variables in subroutines called from parallel regions
+
+- Data scope can be explicitly defined by clauses...
+
+  - PRIVATE, SHARED, FIRSTPRIVATE, LASTPRIVATE
+  - DEFAULT, REDUCTION, COPYIN
+
+- `PRIVATE(var_list)`
+
+  Declares variables in its list to be private to each thread; variable value is **not initialized** and will **not be maintained outside the parallel region**
+
+- `SHARED(var_list)`
+
+  Declares variables in its list to be **shared among all threads**, by default, all variables in the work sharing region are shared except the loop iteration counter
+
+- `FIRSTPRIVATE(var_list)`
+
+  Same as `private` clause, but the **variable is INITIALIZED**, according to the value of their original objects prior to entry into the parallel region
+
+- `LASTPRIVATE(var_list)`
+
+  Same as `PRIVATE` clause, with a **copy from the LAST loop iteration or section to the original variable object**
+
+- `DEFAULT(PRIVATE|FIRSTPRIVATE|SHARED|NONE)`
+
+  Allows the user to specify a default scope for **ALL variables** in the parallel region
+
+- `COPYIN(var_list)`
+
+  **Assigning the same variable value based** on the instance from the master thread
+
+- `COPYPRIVATE(var_list)`
+
+  - Broadcast values acquired by a single thread directly to all instances in the other thread
+  - Associated with the **SINGLE directive**
+
+- `REDUCTION(operator: var_list)`
+
+  - A private copy for each list variable is created for each thread
+  - Performs a reduction on all variable instances
+  - Write the final result to the global shared copy
+
+## Run-Time Library Routines
+
+- `void omp_set_num_threads(int num_threads)`
+
+  Sets the number of threads that will be used in the next parallel region
+
+- `int omp_get_num_threads(void)`
+
+  Returns the number of threads currently executing for the parallel region
+
+- `int omp_get_thread_num(void) `
+
+  Returns the thread number of the thread, within the team, making this call, the master thread of the team is thread 0
+
+- `int omp_get_thread_limit(void)`
+
+  Returns the maximum number of OpenMP threads available to a program
+
+- `int omp_get_num_procs(void)`
+
+  Returns the number of processors that are available to the program
+
+- `int omp_in_parallel(void)`
+
+  determine if the section of code which is executing is parallel or not
+
+

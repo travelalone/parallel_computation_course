@@ -64,7 +64,7 @@ Asynchronous/Non-Blocking Message passing
 - header file: mpi.h
 - mpi calls: return value is error code
 - structure:
-   1. #include "mpi.h"  
+   1. `#include "mpi.h"` 
    2. MPI_Init()
    3. MPI_xxx
    4. MPI_Finalize()
